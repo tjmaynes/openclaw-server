@@ -1,0 +1,4 @@
+---
+collections:
+  - name: git+https://github.com/openclaw/openclaw-ansible.git
+    type: git

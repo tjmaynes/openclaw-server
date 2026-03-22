@@ -1,0 +1,88 @@
+---
+- name: Install additional packages for openclaw user
+  ansible.builtin.apt:
+    name:
+      - stow
+    state: present
+
+- name: Get openclaw user UID
+  ansible.builtin.command: id -u openclaw
+  register: openclaw_uid
+  changed_when: false
+
+- name: Enable lingering for openclaw user # noqa: command-instead-of-module
+  ansible.builtin.command: loginctl enable-linger openclaw
+  changed_when: false
+
+- name: Ensure OpenClaw config directory exists
+  ansible.builtin.file:
+    path: /home/openclaw/.openclaw
+    state: directory
+    owner: openclaw
+    group: openclaw
+    mode: "0700"
+
+- name: Check if openclaw daemon is installed # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl --user list-unit-files openclaw-gateway.service
+  become: true
+  become_user: openclaw
+  environment:
+    XDG_RUNTIME_DIR: /run/user/{{ openclaw_uid.stdout }}
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/{{ openclaw_uid.stdout }}/bus
+  register: openclaw_service_check
+  changed_when: false
+  failed_when: false
+
+- name: Install openclaw daemon
+  ansible.builtin.command: openclaw daemon install
+  become: true
+  become_user: openclaw
+  environment:
+    HOME: /home/openclaw
+    PATH: /home/openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin
+    XDG_RUNTIME_DIR: /run/user/{{ openclaw_uid.stdout }}
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/{{ openclaw_uid.stdout }}/bus
+  changed_when: true
+  when: "'openclaw-gateway.service' not in openclaw_service_check.stdout"
+
+- name: Ensure environment.d directory exists
+  ansible.builtin.file:
+    path: /home/openclaw/.config/environment.d
+    state: directory
+    owner: openclaw
+    group: openclaw
+    mode: "0755"
+
+- name: Set Telegram bot token environment
+  ansible.builtin.copy:
+    dest: /home/openclaw/.config/environment.d/telegram.conf
+    content: |
+      OPENCLAW_TELEGRAM_TOKEN={{ telegram_bot_token }}
+    owner: openclaw
+    group: openclaw
+    mode: "0600"
+  no_log: true
+  notify: Restart openclaw
+
+- name: Set GitHub PAT environment
+  ansible.builtin.copy:
+    dest: /home/openclaw/.config/environment.d/github.conf
+    content: |
+      GITHUB_PAT={{ github_pat }}
+    owner: openclaw
+    group: openclaw
+    mode: "0600"
+  no_log: true
+  notify: Restart openclaw
+  when: github_pat is defined
+
+- name: Set OpenClaw name environment
+  ansible.builtin.copy:
+    dest: /home/openclaw/.config/environment.d/openclaw.conf
+    content: |
+      OPENCLAW_NAME={{ openclaw_name }}
+    owner: openclaw
+    group: openclaw
+    mode: "0644"
+  notify: Restart openclaw
+  when: openclaw_name is defined

@@ -1,0 +1,11 @@
+---
+# Timezone
+timezone: "America/Chicago"
+
+gateway_port: 18789
+
+# Official openclaw collection variables
+tailscale_enabled: true
+nodejs_version: "24.14.0"
+openclaw_install_mode: "release"
+openclaw_ssh_keys: []

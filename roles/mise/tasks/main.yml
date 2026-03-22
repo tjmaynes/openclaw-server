@@ -1,0 +1,43 @@
+---
+- name: Check if mise is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/mise
+  register: mise_binary
+
+- name: Install mise system-wide
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://mise.run | sh
+  args:
+    creates: /usr/local/bin/mise
+    executable: /bin/bash
+  when: not mise_binary.stat.exists
+  tags:
+    - skip_ansible_lint
+
+- name: Create mise config directory
+  ansible.builtin.file:
+    path: /home/openclaw/.config/mise
+    state: directory
+    owner: openclaw
+    group: openclaw
+    mode: "0755"
+
+- name: Write mise config
+  ansible.builtin.copy:
+    dest: /home/openclaw/.config/mise/config.toml
+    content: |
+      [tools]
+      python = "{{ python_version }}"
+    owner: openclaw
+    group: openclaw
+    mode: "0644"
+
+- name: Install mise runtimes
+  ansible.builtin.command: mise install --yes
+  become: true
+  become_user: openclaw
+  environment:
+    HOME: /home/openclaw
+    MISE_YES: "1"
+  changed_when: true

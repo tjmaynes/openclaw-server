@@ -1,0 +1,11 @@
+---
+- name: Deploy OpenClaw
+  hosts: openclaw_servers
+  become: true
+  vars_files:
+    - ../vars/common.yml
+    - ../vars/vault.yml
+  roles:
+    - openclaw.installer.openclaw
+    - tailscale
+    - openclaw

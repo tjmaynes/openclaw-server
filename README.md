@@ -1,0 +1,89 @@
+# jarvis
+
+> Personal assistant powered by OpenClaw, running on an ARM64 Ubuntu Server VM provisioned via Ansible.
+
+## What is OpenClaw?
+
+[OpenClaw](https://docs.openclaw.ai/) is a self-hosted, open-source gateway that bridges messaging platforms (Telegram, WhatsApp, Discord, iMessage) with AI coding agents. It runs entirely on your own hardware, providing an always-available AI assistant with tool use, memory, sessions, and a web-based Control UI — all without relying on cloud services.
+
+## Requirements
+
+- [Python 3](https://www.python.org/)
+- [lume](https://github.com/trycua/lume) (macOS VM manager)
+- [Ubuntu Server ARM64 ISO](https://ubuntu.com/download/server/arm)
+
+## Getting Started
+
+### 1. Create the VM with `lume`
+
+```bash
+lume create jarvis --os linux --cpu 4 --memory 8GB --disk-size 110GB
+```
+
+First boot — mount the installer ISO:
+
+```bash
+lume run jarvis --mount ~/Downloads/ubuntu-24.04.4-live-server-arm64.iso
+```
+
+After installation — run headless:
+
+```bash
+make start
+```
+
+### 2. Install Ansible and dependencies
+
+```bash
+make install
+```
+
+### 3. Configure secrets
+
+```bash
+make decrypt
+# Edit vars/vault.yml with real values:
+#   - tailscale_auth_key
+#   - openclaw_gateway_token
+#   - telegram_bot_token
+#   - vault_github_pat_jarvis
+make encrypt
+```
+
+### 4. Deploy
+
+```bash
+make deploy
+```
+
+### 5. Verify
+
+The playbook fully configures OpenClaw — no manual onboarding needed. Environment variables (Telegram bot token, GitHub PAT, etc.) are injected via systemd `environment.d` configs. Verify the gateway is running:
+
+```bash
+ssh tjmaynes@jarvis
+sudo su - openclaw
+systemctl --user status openclaw-gateway
+```
+
+## Available Commands
+
+| Command | Purpose |
+|---|---|
+| `make install` | Install Ansible, ansible-lint, and the openclaw.installer collection |
+| `make deploy` | Deploy OpenClaw to server |
+| `make check` | Dry-run to preview changes |
+| `make lint` | Lint playbook and roles |
+| `make encrypt` | Encrypt the vault file |
+| `make decrypt` | Decrypt the vault file |
+| `make start` | Start Jarvis VM |
+
+## Architecture
+
+A single playbook (`playbooks/deploy.yml`) runs the following roles:
+
+1. **`openclaw.installer.openclaw`** — official collection handling Node.js, pnpm, Docker, OpenClaw, systemd, UFW, fail2ban, and unattended-upgrades
+2. **`tailscale`** — joins the VM to a Tailscale tailnet and locks down access
+3. **`openclaw`** — installs additional packages (stow), configures the openclaw daemon, and sets environment variables (Telegram, GitHub PAT, etc.)
+
+Host-specific variables (e.g. `openclaw_name`, `github_pat`) are defined per-host in `inventory/hosts.yml`.
