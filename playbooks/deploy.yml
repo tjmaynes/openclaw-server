@@ -8,4 +8,5 @@
   roles:
     - openclaw.installer.openclaw
     - tailscale
+    - mise
     - openclaw

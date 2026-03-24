@@ -9,3 +9,10 @@ tailscale_enabled: true
 nodejs_version: "24.14.0"
 openclaw_install_mode: "release"
 openclaw_ssh_keys: []
+
+# Mise runtime versions
+mise_node_version: "24.14.0"
+mise_python_version: "3.14.3"
+mise_go_version: "1.26"
+mise_direnv_version: "2.32.1"
+mise_just_version: "1.43.1"

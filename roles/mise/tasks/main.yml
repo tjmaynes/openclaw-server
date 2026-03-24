@@ -1,19 +1,21 @@
 ---
-- name: Check if mise is installed
-  ansible.builtin.stat:
-    path: /usr/local/bin/mise
-  register: mise_binary
+- name: Add mise GPG key
+  ansible.builtin.get_url:
+    url: https://mise.jdx.dev/gpg-key.pub
+    dest: /etc/apt/keyrings/mise-archive-keyring.pub
+    mode: "0644"
 
-- name: Install mise system-wide
-  ansible.builtin.shell: |
-    set -o pipefail
-    curl -fsSL https://mise.run | sh
-  args:
-    creates: /usr/local/bin/mise
-    executable: /bin/bash
-  when: not mise_binary.stat.exists
-  tags:
-    - skip_ansible_lint
+- name: Add mise apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/mise.list
+    content: "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.pub arch={{ ansible_architecture | regex_replace('aarch64', 'arm64') | regex_replace('x86_64', 'amd64') }}] https://mise.jdx.dev/deb stable main\n"
+    mode: "0644"
+
+- name: Install mise
+  ansible.builtin.apt:
+    name: mise
+    state: present
+    update_cache: true
 
 - name: Create mise config directory
   ansible.builtin.file:
@@ -28,10 +30,15 @@
     dest: /home/openclaw/.config/mise/config.toml
     content: |
       [tools]
-      python = "{{ python_version }}"
+      node = "{{ mise_node_version }}"
+      python = "{{ mise_python_version }}"
+      go = "{{ mise_go_version }}"
+      direnv = "{{ mise_direnv_version }}"
+      just = "{{ mise_just_version }}"
     owner: openclaw
     group: openclaw
     mode: "0644"
+  register: mise_config
 
 - name: Install mise runtimes
   ansible.builtin.command: mise install --yes
@@ -40,4 +47,4 @@
   environment:
     HOME: /home/openclaw
     MISE_YES: "1"
-  changed_when: true
+  changed_when: mise_config.changed
