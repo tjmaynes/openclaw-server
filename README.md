@@ -43,10 +43,7 @@ make install
 ```bash
 make decrypt
 # Edit vars/vault.yml with real values:
-#   - tailscale_auth_key
-#   - openclaw_gateway_token
-#   - telegram_bot_token
-#   - vault_github_pat_jarvis
+#   - some_key
 make encrypt
 ```
 
@@ -56,12 +53,14 @@ make encrypt
 make deploy
 ```
 
-### 5. Verify
+### 5. Post-deploy
 
-The playbook fully configures OpenClaw — no manual onboarding needed. Environment variables (Telegram bot token, GitHub PAT, etc.) are injected via systemd `environment.d` configs. Verify the gateway is running:
+On first deploy, the playbook generates an SSH key for the openclaw user and prints the public key. Add it to the [bewoogiebot](https://github.com/bewoogiebot) GitHub account under Settings > SSH and GPG keys.
+
+Verify the gateway is running:
 
 ```bash
-ssh tjmaynes@jarvis
+ssh jarvis
 sudo su - openclaw
 systemctl --user status openclaw-gateway
 ```
@@ -84,6 +83,6 @@ A single playbook (`playbooks/deploy.yml`) runs the following roles:
 
 1. **`openclaw.installer.openclaw`** — official collection handling Node.js, pnpm, Docker, OpenClaw, systemd, UFW, fail2ban, and unattended-upgrades
 2. **`tailscale`** — joins the VM to a Tailscale tailnet and locks down access
-3. **`openclaw`** — installs additional packages (stow), configures the openclaw daemon, and sets environment variables (Telegram, GitHub PAT, etc.)
+3. **`openclaw`** — installs additional packages (stow), configures the openclaw daemon, sets up SSH-based GitHub access (bewoogiebot), and manages environment variables
 
-Host-specific variables (e.g. `openclaw_name`, `github_pat`) are defined per-host in `inventory/hosts.yml`.
+Host-specific variables (e.g. `openclaw_name`) are defined per-host in `inventory/hosts.yml`.
