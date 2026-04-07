@@ -9,6 +9,7 @@ help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install Ansible and dependencies
+	brew bundle
 	python3 -m venv .venv
 	$(ACTIVATE) && pip install -r requirements.txt
 	$(ACTIVATE) && ansible-galaxy collection install -r collections/requirements.yml -p collections
@@ -40,5 +41,5 @@ decrypt: ## Decrypt the vault file
 start: ## Start a VM (usage: make start HOST=rosie)
 	lume run $(HOST) --no-display
 
-connect: ## SSH into a host in tmux (usage: make connect HOST=rosie)
+connect_hermes: ## SSH into a host in tmux (usage: make connect_hermes HOST=rosie)
 	ssh -t $(HOST) "sudo -iu hermes tmux new-session -s remote-$(HOST)-session"
