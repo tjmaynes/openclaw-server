@@ -184,9 +184,15 @@
   ansible.builtin.copy:
     dest: /home/{{ hermes_user }}/.hermes/.env
     content: |
+      {% if discord_bot_token is defined %}
       DISCORD_BOT_TOKEN={{ discord_bot_token }}
+      {% if discord_allowed_users is defined %}
       DISCORD_ALLOWED_USERS={{ discord_allowed_users }}
+      {% endif %}
+      {% if discord_home_channel is defined %}
       DISCORD_HOME_CHANNEL={{ discord_home_channel }}
+      {% endif %}
+      {% endif %}
       FIRECRAWL_API_KEY={{ firecrawl_api_key }}
       FIRECRAWL_BASE_URL={{ firecrawl_base_url }}
       HONCHO_BASE_URL={{ honcho_base_url }}
@@ -201,6 +207,13 @@
       {% if home_assistant_url is defined and home_assistant_token is defined %}
       HASS_URL={{ home_assistant_url }}
       HASS_TOKEN={{ home_assistant_token }}
+      {% endif %}
+      {% if mattermost_url is defined and mattermost_token is defined %}
+      MATTERMOST_URL={{ mattermost_url }}
+      MATTERMOST_TOKEN={{ mattermost_token }}
+      {% if mattermost_allowed_users is defined %}
+      MATTERMOST_ALLOWED_USERS={{ mattermost_allowed_users }}
+      {% endif %}
       {% endif %}
     owner: "{{ hermes_user }}"
     group: "{{ hermes_user }}"

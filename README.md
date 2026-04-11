@@ -207,4 +207,6 @@ Some features are conditionally enabled based on whether the host defines certai
 | `custom_dns_server` / `custom_dns_domain` | Configures split DNS via `systemd-resolved` |
 | `github_token` | Adds `GITHUB_TOKEN` and `GH_TOKEN` to hermes `.env` |
 | `home_assistant_url` / `home_assistant_token` | Adds `HASS_URL` and `HASS_TOKEN` to hermes `.env` |
+| `discord_bot_token` (+ optional `discord_allowed_users` / `discord_home_channel`) | Adds `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS`, and `DISCORD_HOME_CHANNEL` to hermes `.env` |
+| `mattermost_url` / `mattermost_token` (+ optional `mattermost_allowed_users`) | Adds `MATTERMOST_URL`, `MATTERMOST_TOKEN`, and `MATTERMOST_ALLOWED_USERS` to hermes `.env` |
 | `git_user_name` / `git_user_email` | Configures git identity for the service user |
