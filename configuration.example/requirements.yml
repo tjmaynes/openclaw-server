@@ -1,0 +1,7 @@
+---
+collections:
+  - name: tjmaynes.agents
+    source: git+https://github.com/tjmaynes/ansible-agentic-collection.git
+    type: git
+  - name: git+https://github.com/openclaw/openclaw-ansible.git
+    type: git

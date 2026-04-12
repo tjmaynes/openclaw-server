@@ -14,15 +14,21 @@
 
 ## Getting Started
 
-### 1. Create a VM
+### 1. Install Ansible and dependencies
 
-The fastest path is the generic `setup` target — pick a hostname for your new VM and run:
+```bash
+make install
+```
+
+This runs `brew bundle` (installing `lume` from the `Brewfile`), creates a Python virtualenv, and installs the Ansible collections listed in `configuration/requirements.yml`.
+
+### 2. Create a VM
 
 ```bash
 make setup HOST=my-agent
 ```
 
-That uses the default sizing (8GB RAM, 110GB disk) and the ISO referenced in the Makefile. To customize memory, disk, or the ISO directly, call the underlying script:
+That uses the default sizing (8GB RAM, 110GB disk) and the ISO referenced in the Makefile. To customize, call the underlying script:
 
 ```bash
 ./scripts/setup-vm.sh "my-agent" \
@@ -31,77 +37,36 @@ That uses the default sizing (8GB RAM, 110GB disk) and the ISO referenced in the
   --iso "./ubuntu-24.04.4-live-server-amd64.iso"
 ```
 
-This repo also ships named convenience targets for the maintainer's two hosts — feel free to delete or replace them when forking:
+The script is idempotent — it skips creation if the VM already exists.
+
+### 3. Initialize your configuration
 
 ```bash
-make setup_rosie     # rosie VM (4GB RAM, 60GB disk)
-make setup_athena    # athena VM (8GB RAM, 110GB disk)
+make init
 ```
 
-`scripts/setup-vm.sh` creates the lume VM and boots the Ubuntu installer. The script is idempotent — it skips creation if the VM already exists.
+This interactive script prompts for:
+- **Remote SSH user** and **SSH key path**
+- **Vault password** (encrypts your secrets)
+- **Host name** and **IP address** of the VM you just created
 
-### 2. Install Ansible and dependencies
+It generates a `configuration/` directory (gitignored) from the templates in `configuration.example/`, containing `ansible.cfg`, `.vault_pass`, `deploy.yml`, `hosts.yml`, `vault.yml`, and `requirements.yml`.
 
-```bash
-make install
-```
+### 4. Edit your vault and encrypt
 
-This runs `brew bundle` (installing `lume` from the `Brewfile`), creates a Python virtualenv, and installs the Ansible collections listed in `collections/requirements.yml`.
-
-### 3. Pick a playbook
-
-Several example playbooks live in `playbooks/` — each one wires a different role chain for a specific agent stack:
-
-| Example | Stack |
-|---|---|
-| `playbooks/deploy.hermes.example.yml` | debian, security, docker, mise, hermes (Hermes Agent + Honcho) |
-| `playbooks/deploy.openclaw.example.yml` | debian, tailscale, mise, openclaw |
-| `playbooks/deploy.claude.example.yml` | debian, security, docker, mise, claude (Claude Code) |
-
-Copy whichever fits your use case to `playbooks/deploy.yml` (the file the Make targets actually invoke), and copy `inventory/hosts.example.yml` to `inventory/hosts.yml`:
+Open `configuration/vault.yml` and fill in your real secrets (bot tokens, API keys, etc.), then encrypt:
 
 ```bash
-cp playbooks/deploy.hermes.example.yml playbooks/deploy.yml
-cp inventory/hosts.example.yml inventory/hosts.yml
-```
-
-Then:
-
-- In `playbooks/deploy.yml`, change `hosts:` to match the hostname(s) you created in step 1.
-- In `inventory/hosts.yml`, replace the example host(s) with your own — set `hostname` / `ansible_host` and rename the per-host vault keys (e.g., `rosie_bot_token` → `<your-host>_bot_token`) to match what you'll define in step 4.
-
-### 4. Create your vault
-
-The `vars/vault.yml` checked into this repo is encrypted with the maintainer's key — forks need their own. Start from a fresh plaintext file and fill in values for whatever your chosen playbook references:
-
-```bash
-cat > vars/vault.yml <<'YAML'
----
-# Per-host connection info
-my_agent_ip: 192.168.x.x
-
-# Per-host Discord bot token (referenced from inventory/hosts.yml)
-my_agent_bot_token: REPLACE_ME
-
-# Shared secrets referenced by the playbook's vars block
-# (e.g., the hermes example references default_firecrawl_api_key /
-# default_firecrawl_base_url — add only what your playbook uses)
-default_firecrawl_api_key: REPLACE_ME
-default_firecrawl_base_url: https://api.firecrawl.dev
-YAML
-
-make encrypt   # prompts for a vault password — remember it
+make encrypt
 ```
 
 To edit later:
 
 ```bash
 make decrypt
-# edit vars/vault.yml
+# edit configuration/vault.yml
 make encrypt
 ```
-
-> Shared, non-secret defaults (timezone, runtime versions, default user names, ports) live in `vars/common.yml` — usually no edits needed unless you want to override a default.
 
 ### 5. Deploy
 
@@ -145,7 +110,7 @@ Go to the [Discord Developer Portal](https://discord.com/developers/applications
 
 **b. Generate a bot token**
 
-On the **Bot** page, click **Reset Token** and copy it. Store it in `vars/vault.yml` as `<host>_bot_token` (e.g., `rosie_bot_token`), then run `make encrypt`.
+On the **Bot** page, click **Reset Token** and copy it. Store it in `configuration/vault.yml` as `<host>_bot_token` (e.g., `my_agent_bot_token`), then run `make encrypt`.
 
 **c. Invite the bot to a server**
 
@@ -174,12 +139,11 @@ hermes gateway start
 | Command | Purpose |
 |---|---|
 | `make install` | Install Ansible, ansible-lint, and collections |
-| `make setup_rosie` | Create rosie VM (4GB RAM, 60GB disk) |
-| `make setup_athena` | Create athena VM (8GB RAM, 110GB disk) |
+| `make init` | Initialize user configuration (interactive) |
 | `make setup HOST=<name>` | Create a custom VM (8GB RAM, 110GB disk) |
 | `make deploy HOST=<name>` | Deploy to a host |
 | `make check HOST=<name>` | Dry-run to preview changes |
-| `make lint` | Lint playbooks and roles |
+| `make lint` | Lint playbooks |
 | `make encrypt` | Encrypt the vault file |
 | `make decrypt` | Decrypt the vault file |
 | `make start HOST=<name>` | Start a VM |
@@ -187,15 +151,13 @@ hermes gateway start
 
 ## Architecture
 
-A single playbook (`playbooks/deploy.yml`) provisions all hosts with the same role chain:
+Your playbook (`configuration/deploy.yml`) provisions hosts with a role chain from the [`tjmaynes.agents`](https://github.com/tjmaynes/ansible-agentic-collection) collection. For the Hermes stack:
 
-1. **`debian`** — base packages (including `gh`), SSH server, service user creation, timezone, unattended-upgrades, custom DNS (optional, via `systemd-resolved` split DNS), git config
-2. **`security`** — SSH hardening (key-only, no root login), UFW firewall (rate-limited SSH, deny-by-default), fail2ban (24h progressive bans), custom CA certificate management (system trust store + Chromium NSS database)
-3. **`docker`** — rootless Docker running under the service user (no docker group escalation), Honcho memory backend via docker-compose
-4. **`mise`** — installs runtimes (Node, Python, Go, direnv, just)
-5. **`hermes`** — scoped sudoers, Hermes Agent install (official curl installer), Playwright browser install, Discord gateway config, systemd service via `hermes gateway install`, environment file (`.env`) with per-host config, mise/env activation in bashrc, `hermes-logs` helper, and SSH-based GitHub access
+1. **`tjmaynes.agents.base`** — base packages (including `gh`), SSH hardening (key-only, no root login), UFW firewall, fail2ban, service user creation, timezone, unattended-upgrades, mise runtimes (Node, Python, Go, direnv, just, Bun), custom DNS (optional), custom CA certs (optional), git config
+2. **`tjmaynes.agents.docker`** — rootless Docker running under the service user (no docker group escalation), optional Honcho memory backend via docker-compose
+3. **`tjmaynes.agents.hermes`** — scoped sudoers, Hermes Agent install (official curl installer), Playwright browser install, gateway config, systemd service via `hermes gateway install`, environment file (`.env`) with per-host config, `hermes-logs` helper, and SSH-based GitHub access
 
-Hosts are defined flat in `inventory/hosts.yml` with per-host variables. Shared configuration lives in play-level vars in the playbook. Per-host secrets come from vault. Deploy one host at a time with `--limit`.
+Hosts are defined flat in `configuration/hosts.yml` with per-host variables. Shared configuration lives in play-level vars in the playbook. Per-host secrets come from the encrypted vault. Deploy one host at a time with `--limit`.
 
 ### Optional per-host features
 
@@ -203,10 +165,10 @@ Some features are conditionally enabled based on whether the host defines certai
 
 | Variable | Effect |
 |---|---|
-| `custom_ca_certificate_path` | Installs CA cert to system trust store and Chromium NSS database |
-| `custom_dns_server` / `custom_dns_domain` | Configures split DNS via `systemd-resolved` |
-| `github_token` | Adds `GITHUB_TOKEN` and `GH_TOKEN` to hermes `.env` |
-| `home_assistant_url` / `home_assistant_token` | Adds `HASS_URL` and `HASS_TOKEN` to hermes `.env` |
-| `discord_bot_token` (+ optional `discord_allowed_users` / `discord_home_channel`) | Adds `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS`, and `DISCORD_HOME_CHANNEL` to hermes `.env` |
-| `mattermost_url` / `mattermost_token` (+ optional `mattermost_allowed_users`) | Adds `MATTERMOST_URL`, `MATTERMOST_TOKEN`, and `MATTERMOST_ALLOWED_USERS` to hermes `.env` |
-| `git_user_name` / `git_user_email` | Configures git identity for the service user |
+| `base_custom_ca_certificate_path` | Installs CA cert to system trust store and Chromium NSS database |
+| `base_custom_dns_server` / `base_custom_dns_domain` | Configures split DNS via `systemd-resolved` |
+| `agent_github_token` | Adds `GITHUB_TOKEN` and `GH_TOKEN` to hermes `.env` |
+| `agent_home_assistant_url` / `agent_home_assistant_token` | Adds `HASS_URL` and `HASS_TOKEN` to hermes `.env` |
+| `agent_discord_bot_token` (+ optional `agent_discord_allowed_users` / `agent_discord_home_channel`) | Adds Discord config to hermes `.env` |
+| `agent_mattermost_url` / `agent_mattermost_token` (+ optional `agent_mattermost_allowed_users`) | Adds Mattermost config to hermes `.env` |
+| `agent_git_user_name` / `agent_git_user_email` | Configures git identity for the service user |

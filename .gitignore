@@ -1,5 +1,5 @@
 .venv/
-.vault_pass
+configuration/
 *.retry
 collections/ansible_collections/
 __pycache__/
@@ -19,5 +19,3 @@ plans/
 .claude/
 docs/
 *.iso
-*.crt
-*.pem
